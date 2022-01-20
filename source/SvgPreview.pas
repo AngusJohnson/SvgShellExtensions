@@ -25,7 +25,7 @@ uses
 {$R dialog.res}
 
 const
-  extension = 'svg';
+  extension = '.svg';
   appId = 'SVGShellExtensions';
   appDescription = 'SVG Shell Extensions';
   SID_EXT_ShellExtensions = '{B2980224-58B3-478C-B596-7D2B23F2C041}';
@@ -60,12 +60,12 @@ type
     function IInitializeWithStream_Init(const pstream: IStream;
       grfMode: DWORD): HRESULT; stdcall;
   private
-    FBounds   : TRect;
+    fBounds   : TRect;
     fParent   : HWND;
     fDialog   : HWND;
     fSvgRead  : TSvgReader;
     fStream   : IStream;
-    procedure CleanupObjects;
+    procedure CleanupDialog;
     procedure RedrawDialog;
   public
     destructor Destroy; override;
@@ -96,67 +96,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure CheckAlpha(var img: TImage32);
-var
-  i: integer;
-  pc: PARGB;
-begin
-  pc := PARGB(img.PixelBase);
-  for i := 0 to High(img.Pixels) do
-    if pc.A > 0 then Exit else
-    inc(pc);
-  img.SetAlpha(255);
-end;
-//------------------------------------------------------------------------------
-
-function CalcStride(width, bpp: integer): integer;
-begin
-  Result := (((width * bpp) + 31) and not 31) shr 3;
-end;
-//------------------------------------------------------------------------------
-
-type
-  PRgbTriple = ^TRgbTriple;
-  TRgbTriple = packed record
-    r, g, b: byte;
-  end;
-
-function Make24BitBitmapFromPxls(const img: TImage32): HBitmap;
-var
-  i,j, len, stride, wSpace: integer;
-  src : PARGB;
-  dst : PRgbTriple;
-  bi  : TBitmapInfoHeader;
-begin
-  Result := 0;
-  len := Length(img.pixels);
-  if len <> img.width * img.height then Exit;
-  stride := CalcStride(img.Width, 24);
-  wSpace := stride - (img.Width *3);
-
-  FillChar(bi, sizeof(bi), #0);
-  bi.biSize := sizeof(bi);
-  bi.biWidth := img.width;
-  bi.biHeight := -img.height;
-  bi.biPlanes := 1;
-  bi.biBitCount := 24;
-  bi.biSizeImage := img.Height * stride;
-  bi.biCompression := BI_RGB;
-  src := PARGB(img.PixelBase);
-  Result := CreateDIBSection(0,
-    PBitmapInfo(@bi)^, DIB_RGB_COLORS, Pointer(dst), 0, 0);
-  for i := 0 to img.Height -1 do
-  begin
-    for j := 0 to img.Width -1 do
-    begin
-      dst.r := src.R; dst.g := src.G; dst.b := src.B;
-      inc(src); inc(dst);
-    end;
-    PByte(dst) := PByte(dst) + wSpace;
-  end;
-end;
-//------------------------------------------------------------------------------
-
 function Make32BitBitmapFromPxls(const img: TImage32): HBitmap;
 var
   len : integer;
@@ -183,14 +122,6 @@ begin
     PBitmapInfo(@bi)^, DIB_RGB_COLORS, Pointer(dst), 0, 0);
   Move(img.pixels[0], dst^, len * 4);
 end;
-//------------------------------------------------------------------------------
-
-function ClampByte(val: double): byte; inline;
-begin
-  if val <= 0 then result := 0
-  else if val >= 255 then result := 255
-  else result := Round(val);
-end;
 
 //------------------------------------------------------------------------------
 // TSvgShellExt
@@ -198,7 +129,7 @@ end;
 
 destructor TSvgShellExt.Destroy;
 begin
-  CleanupObjects;
+  CleanupDialog;
   if Assigned(fSvgRead) then
     FreeAndNil(fSvgRead);
   fStream := nil;
@@ -206,7 +137,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure TSvgShellExt.CleanupObjects;
+procedure TSvgShellExt.CleanupDialog;
 var
   imgCtrl: HWnd;
   bm: HBitmap;
@@ -231,18 +162,17 @@ var
   bm,oldBm: HBitmap;
 begin
   if fDialog = 0 then Exit;
-  SetWindowPos(fDialog, 0, FBounds.left, FBounds.top,
-    RectWidth(FBounds), RectHeight(FBounds),
+  SetWindowPos(fDialog, 0, fBounds.left, fBounds.top,
+    RectWidth(fBounds), RectHeight(fBounds),
     SWP_NOZORDER or SWP_NOACTIVATE);
 
-  w := RectWidth(FBounds);
-  h := RectHeight(FBounds);
+  w := RectWidth(fBounds);
+  h := RectHeight(fBounds);
   img := TImage32.Create(w, h);
   try
     fSvgRead.DrawImage(img, true);
     l := (w - img.Width) div 2;
     t := (h - img.Height) div 2;
-    CheckAlpha(img);
     bm := Make32BitBitmapFromPxls(img);
   finally
     img.Free;
@@ -273,14 +203,13 @@ var
   size,dum  : Cardinal;
   ms: TMemoryStream;
 begin
-  //MessageBox(0, 'DoPreview', '',0);
   result := S_OK;
-  if (fParent = 0) or FBounds.IsEmpty then Exit;
+  if (fParent = 0) or fBounds.IsEmpty then Exit;
 
   if not Assigned(fSvgRead) then
     fSvgRead := TSvgReader.Create;
 
-  CleanupObjects;
+  CleanupDialog;
 
   size := GetStreamSize(fStream);
   if size = 0 then Exit;
@@ -320,7 +249,7 @@ end;
 
 function TSvgShellExt.SetRect(var prc: TRect): HRESULT;
 begin
-  FBounds := prc;
+  fBounds := prc;
   RedrawDialog;
   result := S_OK;
 end;
@@ -328,10 +257,9 @@ end;
 
 function TSvgShellExt.SetWindow(hwnd: HWND; var prc: TRect): HRESULT;
 begin
-  //MessageBox(0, 'SetWindow', '',0);
   if (hwnd <> 0) then fParent := hwnd;
-  if (@prc <> nil) then FBounds := prc;
-  CleanupObjects;
+  if (@prc <> nil) then fBounds := prc;
+  CleanupDialog;
   result := S_OK;
 end;
 //------------------------------------------------------------------------------
@@ -344,7 +272,7 @@ end;
 
 function TSvgShellExt.Unload: HRESULT;
 begin
-  CleanupObjects;
+  CleanupDialog;
   if Assigned(fSvgRead) then FreeAndNil(fSvgRead);
   fStream := nil;
   fParent := 0;
@@ -355,7 +283,6 @@ end;
 function TSvgShellExt.IInitializeWithStream_Init(const pstream: IStream;
   grfMode: DWORD): HRESULT;
 begin
-  //MessageBox(0, 'Init', '',0);
   fStream := nil;
   fStream := pstream;
   result := S_OK;
@@ -379,7 +306,7 @@ begin
   size := GetStreamSize(fStream);
   SetStreamPos(fStream, 0);
 
-  img := TImage32.Create(1024, 1024);
+  img := TImage32.Create(256, 256);
   try
 
     svgr := TSvgReader.Create;
@@ -400,7 +327,9 @@ begin
     w := Round(img.width * scale);
     h := Round(img.height * scale);
     img.Resize(w, h);
-    //img.SetBackgroundColor(clWhite32);
+    //the following is partial workaround for an occasional OS bug
+    //where transparent images will be rendered with black backgrounds
+    img.SetBackgroundColor(clWhite32);
     hbmp := Make32BitBitmapFromPxls(img);
   finally
     img.Free;
@@ -408,6 +337,7 @@ begin
 end;
 
 initialization
+  //fonts are needed to display SVG text
   FontManager.Load('Arial');
   FontManager.Load('Arial Bold');
   FontManager.Load('Times New Roman');

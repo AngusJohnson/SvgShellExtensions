@@ -49,7 +49,7 @@ begin
   reg := TRegistry.Create(KEY_ALL_ACCESS);
   try
     reg.RootKey := HKEY_CLASSES_ROOT;
-    if not reg.OpenKey('.'+extension, true) then Exit;
+    if not reg.OpenKey(extension, true) then Exit;
     reg.WriteString('', appId);
     reg.CloseKey;
 
@@ -70,10 +70,10 @@ begin
 
     ////////////////////////////////////////////////////////////////////////////
     //the following also seems necessary (at least for SVG files)
-    if not reg.OpenKey('.'+extension+'\ShellEx\'+SID_IPreviewHandler, true) then Exit;
+    if not reg.OpenKey(extension+'\ShellEx\'+SID_IPreviewHandler, true) then Exit;
     reg.WriteString('', SID_EXT_ShellExtensions);
     reg.CloseKey;
-    if not reg.OpenKey('.'+extension+'\ShellEx\'+SID_IThumbnailProvider, true) then Exit;
+    if not reg.OpenKey(extension+'\ShellEx\'+SID_IThumbnailProvider, true) then Exit;
     reg.WriteString('', SID_EXT_ShellExtensions);
     reg.CloseKey;
     ////////////////////////////////////////////////////////////////////////////
@@ -106,7 +106,7 @@ begin
     reg.Free;
   end;
 
-  //Invalidate the shell's cache so any .qoi files viewed
+  //Invalidate the shell's cache so any .svg files viewed
   //before registering won't show blank images.
   SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nil, nil);
 
@@ -126,10 +126,10 @@ begin
           reg.DeleteValue(SID_EXT_ShellExtensions);
 
     reg.RootKey := HKEY_CLASSES_ROOT;
-    if reg.KeyExists('.'+extension+'\ShellEx\'+SID_IPreviewHandler) then
-      reg.DeleteKey('.'+extension+'\ShellEx\'+SID_IPreviewHandler);
-    if reg.KeyExists('.'+extension+'\ShellEx\'+SID_IThumbnailProvider) then
-      reg.DeleteKey('.'+extension+'\ShellEx\'+SID_IThumbnailProvider);
+    if reg.KeyExists(extension + '\ShellEx\'+SID_IPreviewHandler) then
+      reg.DeleteKey(extension + '\ShellEx\'+SID_IPreviewHandler);
+    if reg.KeyExists(extension + '\ShellEx\'+SID_IThumbnailProvider) then
+      reg.DeleteKey(extension + '\ShellEx\'+SID_IThumbnailProvider);
 
     reg.DeleteKey('CLSID\'+SID_EXT_ShellExtensions);
     reg.DeleteKey(appId);
