@@ -2,8 +2,8 @@ library SvgShellExtensions;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  0.99                                                            *
-* Date      :  17 January 2022                                                 *
+* Version   :  1.1                                                             *
+* Date      :  21 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2022                                              *
 *                                                                              *
@@ -101,7 +101,6 @@ begin
       reg.WriteString(SID_EXT_ShellExtensions, appDescription);
       reg.CloseKey;
     end;
-
   finally
     reg.Free;
   end;

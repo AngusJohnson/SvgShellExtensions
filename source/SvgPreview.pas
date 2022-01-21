@@ -2,8 +2,8 @@ unit SvgPreview;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.0                                                            *
-* Date      :  18 January 2022                                                 *
+* Version   :  1.1                                                            *
+* Date      :  21 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2022                                              *
 *                                                                              *
@@ -17,7 +17,7 @@ unit SvgPreview;
 interface
 
 uses
-  Windows, Messages, ActiveX, Classes, ComObj, ComServ, ShlObj,
+  Windows, Messages, ActiveX, Classes, ComObj, ComServ, ShlObj, Registry,
   PropSys, Types, SysUtils, Math, Img32, Img32.SVG.Reader, Img32.Text;
 
 {$WARN SYMBOL_PLATFORM OFF}
@@ -34,6 +34,7 @@ const
   SID_IThumbnailProvider = '{E357FCCD-A995-4576-B01F-234630154E96}';
   IID_IThumbnailProvider: TGUID = SID_IThumbnailProvider;
 
+  darkBkColor = $202020;
 type
   TWTS_ALPHATYPE = (WTSAT_UNKNOWN, WTSAT_RGB, WTSAT_ARGB);
   IThumbnailProvider = interface(IUnknown)
@@ -63,10 +64,14 @@ type
     fBounds   : TRect;
     fParent   : HWND;
     fDialog   : HWND;
+    fDarkBrush: HBrush;
     fSvgRead  : TSvgReader;
     fStream   : IStream;
+    fDarkModeChecked: Boolean;
+    fDarkModeEnabled: Boolean;
     procedure CleanupDialog;
     procedure RedrawDialog;
+    procedure CheckDarkMode;
   public
     destructor Destroy; override;
   end;
@@ -81,9 +86,11 @@ function GetStreamSize(stream: IStream): Cardinal;
 var
   statStg: TStatStg;
 begin
-  if stream.Stat(statStg, STATFLAG_NONAME) = S_OK then
-    Result := statStg.cbSize else
-    Result := 0;
+  if assigned(stream) and
+    (stream.Stat(statStg, STATFLAG_NONAME) = S_OK) then
+      Result := statStg.cbSize
+  else
+      Result := 0;
 end;
 //------------------------------------------------------------------------------
 
@@ -100,27 +107,39 @@ function Make32BitBitmapFromPxls(const img: TImage32): HBitmap;
 var
   len : integer;
   dst : PARGB;
-  bi  : TBitmapV4Header;
+  bi  : TBitmapInfoHeader;
 begin
   Result := 0;
   len := Length(img.pixels);
   if len <> img.width * img.height then Exit;
   FillChar(bi, sizeof(bi), #0);
-  bi.bV4Size := sizeof(TBitmapV4Header);
-  bi.bV4Width := img.width;
-  bi.bV4Height := -img.height;
-  bi.bV4Planes := 1;
-  bi.bV4BitCount := 32;
-  bi.bV4SizeImage := len *4;
-  bi.bV4V4Compression := BI_RGB;
-  bi.bV4RedMask       := $FF shl 16;
-  bi.bV4GreenMask     := $FF shl 8;
-  bi.bV4BlueMask      := $FF;
-  bi.bV4AlphaMask     := Cardinal($FF) shl 24;
-
+  bi.biSize := sizeof(bi);
+  bi.biWidth := img.width;
+  bi.biHeight := -img.height;
+  bi.biPlanes := 1;
+  bi.biBitCount := 32;
+  bi.biCompression := BI_RGB;
   Result := CreateDIBSection(0,
     PBitmapInfo(@bi)^, DIB_RGB_COLORS, Pointer(dst), 0, 0);
   Move(img.pixels[0], dst^, len * 4);
+end;
+//------------------------------------------------------------------------------
+
+function DlgProc(dlg: HWnd; msg, wPar: WPARAM; lPar: LPARAM): Bool; stdcall;
+var
+  svgShellExt: TSvgShellExt;
+begin
+  case msg of
+    WM_CTLCOLORDLG, WM_CTLCOLORSTATIC:
+      begin
+        svgShellExt := Pointer(GetWindowLongPtr(dlg, GWLP_USERDATA));
+        if Assigned(svgShellExt) and (svgShellExt.fDarkBrush <> 0) then
+          Result := Bool(svgShellExt.fDarkBrush) else
+          Result := Bool(GetSysColorBrush(COLOR_WINDOW));
+      end;
+    else
+      Result := False;
+  end;
 end;
 
 //------------------------------------------------------------------------------
@@ -150,6 +169,8 @@ begin
     DeleteObject(bm);
     DestroyWindow(fDialog);
     fDialog := 0;
+    if fDarkBrush <> 0 then DeleteObject(fDarkBrush);
+    fDarkBrush := 0;
   end;
 end;
 //------------------------------------------------------------------------------
@@ -184,23 +205,32 @@ begin
   oldBm := SendMessage(imgCtrl, STM_SETIMAGE, IMAGE_BITMAP, bm);
   if oldBm <> 0 then DeleteObject(oldBm);
   DeleteObject(bm);
+
+  ShowWindow(fDialog, SW_SHOW);
 end;
 //------------------------------------------------------------------------------
 
-function DlgProc(dlg: HWnd; msg, wPar: WPARAM; lPar: LPARAM): Bool; stdcall;
+procedure TSvgShellExt.CheckDarkMode;
+var
+  reg: TRegistry;
 begin
-  case msg of
-    WM_CTLCOLORDLG, WM_CTLCOLORSTATIC:
-      Result := Bool(GetStockObject(WHITE_BRUSH));
-    else
-      Result := False;
+  fDarkModeChecked := true;
+  reg := TRegistry.Create(KEY_READ); //specific access rights important here
+  try
+    reg.RootKey := HKEY_CURRENT_USER;
+    fDarkModeEnabled := reg.OpenKey(
+      'SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', false) and
+      reg.ValueExists('SystemUsesLightTheme') and
+      (reg.ReadInteger('SystemUsesLightTheme') = 0);
+  finally
+    reg.Free;
   end;
 end;
 //------------------------------------------------------------------------------
 
 function TSvgShellExt.DoPreview: HRESULT;
 var
-  size,dum  : Cardinal;
+  size, dummy  : Cardinal;
   ms: TMemoryStream;
 begin
   result := S_OK;
@@ -211,13 +241,16 @@ begin
 
   CleanupDialog;
 
+  if not fDarkModeChecked then
+    CheckDarkMode;
+
   size := GetStreamSize(fStream);
   if size = 0 then Exit;
   ms := TMemoryStream.Create;
   try
     ms.SetSize(size);
     SetStreamPos(fStream, 0);
-    fStream.Read(ms.Memory, size, @dum);
+    fStream.Read(ms.Memory, size, @dummy);
     fSvgRead.LoadFromStream(ms);
   finally
     ms.Free;
@@ -228,9 +261,11 @@ begin
   //create the display dialog containing an image control
   fDialog := CreateDialog(hInstance,
     MAKEINTRESOURCE(1), fParent, @DlgProc);
+  SetWindowLongPtr(fDialog, GWLP_USERDATA, NativeInt(self));
+  if fDarkModeEnabled then
+    fDarkBrush := CreateSolidBrush(darkBkColor);
   //draw and show the display dialog
   RedrawDialog;
-  ShowWindow(fDialog, SW_SHOW);
 end;
 //------------------------------------------------------------------------------
 
@@ -292,12 +327,13 @@ end;
 function TSvgShellExt.GetThumbnail(cx: Cardinal;
   out hbmp: HBITMAP; out at: TWTS_ALPHATYPE): HRESULT;
 var
-  size, dum : Cardinal;
-  w,h       : integer;
-  scale     : double;
-  img       : TImage32;
-  ms        : TMemoryStream;
-  svgr      : TSvgReader;
+  size  : Cardinal;
+  dummy : Cardinal;
+  w,h   : integer;
+  scale : double;
+  img   : TImage32;
+  ms    : TMemoryStream;
+  svgr  : TSvgReader;
 begin
   result := S_FALSE;
   if fStream = nil then Exit;
@@ -308,12 +344,11 @@ begin
 
   img := TImage32.Create(256, 256);
   try
-
     svgr := TSvgReader.Create;
     ms := TMemoryStream.Create;
     try
       ms.SetSize(size);
-      result := fStream.Read(ms.Memory, size, @dum);
+      result := fStream.Read(ms.Memory, size, @dummy);
       svgr.LoadFromStream(ms);
       svgr.DrawImage(img, true);
     finally
@@ -327,20 +362,25 @@ begin
     w := Round(img.width * scale);
     h := Round(img.height * scale);
     img.Resize(w, h);
-    //the following is partial workaround for an occasional OS bug
-    //where transparent images will be rendered with black backgrounds
-    img.SetBackgroundColor(clWhite32);
     hbmp := Make32BitBitmapFromPxls(img);
   finally
     img.Free;
   end;
 end;
 
-initialization
-  //fonts are needed to display SVG text
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+
+procedure LoadFonts;
+begin
   FontManager.Load('Arial');
   FontManager.Load('Arial Bold');
   FontManager.Load('Times New Roman');
+end;
+//------------------------------------------------------------------------------
+
+initialization
+  LoadFonts; //needed when displaying SVG text
 
   TComObjectFactory.Create(ComServer,
     TSvgShellExt, IID_EXT_ShellExtensions,
