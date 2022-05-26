@@ -7,8 +7,7 @@ SvgShellExtensions.dll has been compiled using Delphi Version 10.4 Community Edi
 https://www.embarcadero.com/products/delphi/starter/free-download
 <br><br>
 
-The Image32 2D graphics library was also used.<br>
-https://sourceforge.net/projects/image32/
+My [**Image32 2D graphics library**](https://github.com/AngusJohnson/Image32) was also used.<br>
 
 ![Preview](https://user-images.githubusercontent.com/5280692/150119503-11700028-4dcf-4eca-aeaf-a787c4339a28.png)
 
