@@ -259,8 +259,7 @@ begin
   if fSvgRead.IsEmpty then Exit;
 
   //create the display dialog containing an image control
-  fDialog := CreateDialog(hInstance,
-    MAKEINTRESOURCE(1), fParent, @DlgProc);
+  fDialog := CreateDialog(hInstance, MAKEINTRESOURCE(1), fParent, @DlgProc);
   SetWindowLongPtr(fDialog, GWLP_USERDATA, NativeInt(self));
   if fDarkModeEnabled then
     fDarkBrush := CreateSolidBrush(darkBkColor);
@@ -379,10 +378,18 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-initialization
-  LoadFonts; //needed when displaying SVG text
+var
+  res: HRESULT;
 
+initialization
+  res := OleInitialize(nil);
+
+  LoadFonts; //needed when displaying SVG text
   TComObjectFactory.Create(ComServer,
     TSvgShellExt, IID_EXT_ShellExtensions,
     appId, appDescription, ciMultiInstance, tmApartment);
+
+finalization
+  if res = S_OK then OleUninitialize();
+
 end.
