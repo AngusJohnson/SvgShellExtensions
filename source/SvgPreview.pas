@@ -372,9 +372,10 @@ end;
 
 procedure LoadFonts;
 begin
-  FontManager.Load('Arial');
-  FontManager.Load('Arial Bold');
+  FontManager.Load('Segoe UI');
+  FontManager.Load('Segoe UI Black');
   FontManager.Load('Times New Roman');
+  FontManager.Load('Segoe UI Symbol');
 end;
 //------------------------------------------------------------------------------
 
