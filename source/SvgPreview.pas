@@ -26,17 +26,19 @@ uses
 
 const
   extension = '.svg';
-  appId = 'SVGShellExtensions';
-  appDescription = 'SVG Shell Extensions';
-  SID_EXT_ShellExtensions = '{B2980224-58B3-478C-B596-7D2B23F2C041}';
-  IID_EXT_ShellExtensions: TGUID = SID_EXT_ShellExtensions;
+  extFile = 'svgFile';
+  appId = 'SVGShellHandler';
+  appDescription = 'SVG Shell Handler';
 
+  SID_SVG_ShellHandler = '{B2980224-58B3-478C-B596-7D2B23F2C041}';
+  IID_SVG_ShellHandler: TGUID = SID_SVG_ShellHandler;
   SID_IThumbnailProvider = '{E357FCCD-A995-4576-B01F-234630154E96}';
   IID_IThumbnailProvider: TGUID = SID_IThumbnailProvider;
 
   darkBkColor = $202020;
 type
   TWTS_ALPHATYPE = (WTSAT_UNKNOWN, WTSAT_RGB, WTSAT_ARGB);
+
   IThumbnailProvider = interface(IUnknown)
     [SID_IThumbnailProvider]
     function GetThumbnail(cx: Cardinal; out hbmp: HBITMAP;
@@ -314,15 +316,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function TSvgShellExt.IInitializeWithStream_Init(const pstream: IStream;
-  grfMode: DWORD): HRESULT;
-begin
-  fStream := nil;
-  fStream := pstream;
-  result := S_OK;
-end;
-//------------------------------------------------------------------------------
-
 function TSvgShellExt.GetThumbnail(cx: Cardinal;
   out hbmp: HBITMAP; out at: TWTS_ALPHATYPE): HRESULT;
 var
@@ -366,6 +359,15 @@ begin
     img.Free;
   end;
 end;
+//------------------------------------------------------------------------------
+
+function TSvgShellExt.IInitializeWithStream_Init(const pstream: IStream;
+  grfMode: DWORD): HRESULT;
+begin
+  fStream := nil;
+  fStream := pstream;
+  result := S_OK;
+end;
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -387,8 +389,8 @@ initialization
 
   LoadFonts; //needed when displaying SVG text
   TComObjectFactory.Create(ComServer,
-    TSvgShellExt, IID_EXT_ShellExtensions,
-    appId, appDescription, ciMultiInstance, tmApartment);
+    TSvgShellExt, IID_SVG_ShellHandler,
+    extFile, appDescription, ciMultiInstance, tmApartment);
 
 finalization
   if res = S_OK then OleUninitialize();

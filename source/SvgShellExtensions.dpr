@@ -3,9 +3,9 @@ library SvgShellExtensions;
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
 * Version   :  1.1                                                             *
-* Date      :  21 January 2022                                                 *
+* Date      :  14 October 2023                                                 *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2022                                              *
+* Copyright :  Angus Johnson 2022-2023                                         *
 *                                                                              *
 * Purpose   :  64bit Windows Explorer Preview Handler for QOI image files      *
 *                                                                              *
@@ -27,7 +27,9 @@ uses
 {$R *.res}
 
 const
-  sSurrogateAppId = '{6D2B5079-2F0B-48DD-AB7F-97CEC514D30B}'; //64bit
+  // Preview Handler Surrogate Host (Prevhost.exe)
+  // see HKEY_CLASSES_ROOT\AppID
+  sSurrogateAppId = '{6D2B5079-2F0B-48DD-AB7F-97CEC514D30B}';
 
 function GetModuleName: string;
 var
@@ -45,62 +47,56 @@ var
   reg: TRegistry;
 begin
   Result := E_UNEXPECTED; //will fail if not ADMIN
-
   reg := TRegistry.Create(KEY_ALL_ACCESS);
   try
     reg.RootKey := HKEY_CLASSES_ROOT;
     if not reg.OpenKey(extension, true) then Exit;
-    reg.WriteString('', appId);
+    reg.WriteString('', extFile); //'svgFile' (see SvgPreview.pas)
+    reg.CloseKey;
+    if not reg.OpenKey(extFile, true) then Exit;
     reg.CloseKey;
 
-    if reg.OpenKey(appId+'\Clsid', true) then
-    begin
-      reg.WriteString('', SID_EXT_ShellExtensions);
-      reg.CloseKey;
-    end;
-
-    //REGISTER PREVIEW HANDLER
-    if not reg.OpenKey(appId+'\ShellEx\'+SID_IPreviewHandler, true) then Exit;
-    reg.WriteString('', SID_EXT_ShellExtensions);
-    reg.CloseKey;
-    //REGISTER THUMBNAIL PROVIDER
-    if not reg.OpenKey(appId+'\ShellEx\'+SID_IThumbnailProvider, true) then Exit;
-    reg.WriteString('', SID_EXT_ShellExtensions);
+    if not reg.OpenKey(extFile+'\CLSID', true) then Exit;
+    reg.WriteString('', SID_SVG_ShellHandler);
     reg.CloseKey;
 
-    ////////////////////////////////////////////////////////////////////////////
-    //the following also seems necessary (at least for SVG files)
+    //REGISTER PREVIEW HANDLER and THUMBNAIL PROVIDER (under .svg)
     if not reg.OpenKey(extension+'\ShellEx\'+SID_IPreviewHandler, true) then Exit;
-    reg.WriteString('', SID_EXT_ShellExtensions);
+    reg.WriteString('', SID_SVG_ShellHandler);
     reg.CloseKey;
     if not reg.OpenKey(extension+'\ShellEx\'+SID_IThumbnailProvider, true) then Exit;
-    reg.WriteString('', SID_EXT_ShellExtensions);
+    reg.WriteString('', SID_SVG_ShellHandler);
     reg.CloseKey;
-    ////////////////////////////////////////////////////////////////////////////
 
-    if not reg.OpenKey('CLSID\'+ SID_EXT_ShellExtensions, true) then Exit;
+    //REGISTER PREVIEW HANDLER and THUMBNAIL PROVIDER (under .svgFile)
+    if not reg.OpenKey(extFile +'\ShellEx\'+SID_IPreviewHandler, true) then Exit;
+    reg.WriteString('', SID_SVG_ShellHandler);
+    reg.CloseKey;
+    if not reg.OpenKey(extFile +'\ShellEx\'+SID_IThumbnailProvider, true) then Exit;
+    reg.WriteString('', SID_SVG_ShellHandler);
+    reg.CloseKey;
+
+    if not reg.OpenKey('CLSID\'+ SID_SVG_ShellHandler, true) then Exit;
     reg.WriteString('', appDescription);
     reg.WriteString('AppID', sSurrogateAppId);
     reg.CloseKey;
 
-    reg.OpenKey('CLSID\'+ SID_EXT_ShellExtensions+'\InProcServer32', true);
+    reg.OpenKey('CLSID\'+ SID_SVG_ShellHandler+'\InProcServer32', true);
     reg.WriteString('', GetModuleName);
     reg.WriteString('ThreadingModel', 'Apartment');
-    reg.WriteString('ProgId', appId);
-    reg.WriteString('VersionIndependentProgID', appId);
     reg.CloseKey;
 
-    reg.OpenKey('CLSID\' + SID_EXT_ShellExtensions + '\ProgId', true);
-    reg.WriteString('', appId);
+    reg.OpenKey('CLSID\' + SID_SVG_ShellHandler + '\ProgId', true);
+    reg.WriteString('', extFile);
     reg.CloseKey;
 
     reg.RootKey := HKEY_LOCAL_MACHINE;
-    if reg.OpenKey('SOFTWARE\Microsoft\Windows\'+
-      'CurrentVersion\PreviewHandlers', true) then
+    if reg.OpenKey('SOFTWARE\Microsoft\Windows\CurrentVersion\PreviewHandlers', true) then
     begin
-      reg.WriteString(SID_EXT_ShellExtensions, appDescription);
+      reg.WriteString(SID_SVG_ShellHandler, appDescription);
       reg.CloseKey;
     end;
+
   finally
     reg.Free;
   end;
@@ -121,8 +117,8 @@ begin
     reg.RootKey := HKEY_LOCAL_MACHINE;
     if reg.OpenKey('SOFTWARE\Microsoft\Windows\'+
       'CurrentVersion\PreviewHandlers', true) and
-        reg.ValueExists(SID_EXT_ShellExtensions) then
-          reg.DeleteValue(SID_EXT_ShellExtensions);
+        reg.ValueExists(SID_SVG_ShellHandler) then
+          reg.DeleteValue(SID_SVG_ShellHandler);
 
     reg.RootKey := HKEY_CLASSES_ROOT;
     if reg.KeyExists(extension + '\ShellEx\'+SID_IPreviewHandler) then
@@ -130,8 +126,11 @@ begin
     if reg.KeyExists(extension + '\ShellEx\'+SID_IThumbnailProvider) then
       reg.DeleteKey(extension + '\ShellEx\'+SID_IThumbnailProvider);
 
-    reg.DeleteKey('CLSID\'+SID_EXT_ShellExtensions);
-    reg.DeleteKey(appId);
+    reg.DeleteKey('CLSID\'+SID_SVG_ShellHandler);
+    reg.DeleteKey(extFile+'\ShellEx\'+SID_IPreviewHandler);
+    reg.DeleteKey(extFile+'\ShellEx\'+SID_IThumbnailProvider);
+    reg.DeleteKey(extFile+'\Clsid');
+
   finally
     reg.Free;
   end;
