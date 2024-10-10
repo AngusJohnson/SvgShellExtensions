@@ -3,7 +3,7 @@
 Windows (64bit) Explorer Shell Extensions for SVG files<br>
 Preview Handler and Thumbnail Provider<br><br>
 
-SvgShellExtensions.dll has been compiled using Delphi Version 10.4 Community Edition.<br>
+SvgShellExtensions.dll has been compiled using Delphi Version 12 Community Edition.<br>
 https://www.embarcadero.com/products/delphi/starter/free-download
 <br><br>
 
@@ -18,8 +18,8 @@ Install:
 ----------
 
 1. Right click Windows' Start Button<br>
-2. Select Windows PowerShell (Admin)<br>
-In Windows PowerShell ...<br>
+2. Select Terminal (Admin)<br>
+In Terminal ...<br>
 **cd** path_to_SvgShellExtensions<br>
 **regsvr32** SvgShellExtensions.dll<br>
 exit<br><br>
@@ -29,8 +29,8 @@ Uninstall:
 ----------
 
 1. Right click Windows' Start Button<br>
-2. Select Windows PowerShell (Admin)<br>
-In Windows PowerShell ...<br>
+2. Select Terminal (Admin)<br>
+In Terminal ...<br>
 **cd** path_to_SvgShellExtensions<br>
 **regsvr32 /u** SvgShellExtensions.dll<br>
 exit<br><br>
