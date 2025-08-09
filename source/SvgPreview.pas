@@ -2,10 +2,10 @@ unit SvgPreview;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.1                                                            *
-* Date      :  21 January 2022                                                 *
+* Version   :  1.2                                                             *
+* Date      :  9 August 2025                                                   *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2022                                              *
+* Copyright :  Angus Johnson 2022-25                                           *
 *                                                                              *
 * Purpose   :  IPreviewHandler and IThumbnailProvider for SVG image files      *
 *                                                                              *
@@ -18,7 +18,7 @@ interface
 
 uses
   Windows, Messages, ActiveX, Classes, ComObj, ComServ, ShlObj, Registry,
-  PropSys, Types, SysUtils, Math, Img32, Img32.SVG.Reader, Img32.Text;
+  PropSys, Types, SysUtils, Math, Img32, Img32.SVG.Reader;
 
 {$WARN SYMBOL_PLATFORM OFF}
 
@@ -79,6 +79,8 @@ type
   end;
 
 implementation
+
+uses Img32.Fmt.PNG, Img32.Fmt.JPG, Img32.Text;
 
 //------------------------------------------------------------------------------
 // Miscellaneous functions
@@ -374,10 +376,12 @@ end;
 
 procedure LoadFonts;
 begin
-  FontManager.Load('Segoe UI');
-  FontManager.Load('Segoe UI Black');
-  FontManager.Load('Times New Roman');
-  FontManager.Load('Segoe UI Symbol');
+  FontManager.LoadFontReaderFamily('Segoe UI');
+//  FontManager.Load('Segoe UI Black');
+  FontManager.LoadFontReader('Segoe UI Symbol');
+  FontManager.LoadFontReader('Segoe UI Emoji');
+  FontManager.LoadFontReaderFamily('Times New Roman');
+//  FontManager.Load('Times New Roman Bold');
 end;
 //------------------------------------------------------------------------------
 
